@@ -127,7 +127,7 @@ echo ""
 log_config "Installation configuration:"
 log_config "  Service name: ${GREEN}$service_name${NC}"
 log_config "  Install directory: ${GREEN}$target_dir${NC}"
-log_config "  GitHub proxy: ${GREEN}${github_proxy:-"(direct)"}${NC}"
+log_config "  Mirror/proxy prefix: ${GREEN}${github_proxy:-"(direct)"}${NC}"
 log_config "  Binary arguments: ${GREEN}$komari_args${NC}"
 if [ -n "$install_version" ]; then
     log_config "  Specified agent version: ${GREEN}$install_version${NC}"
@@ -282,28 +282,38 @@ case $arch in
 esac
 log_info "Detected OS: ${GREEN}$os_name${NC}, Architecture: ${GREEN}$arch${NC}"
 
+gitlab_project_path="raymao96%2Fkomari-agent"
+gitlab_api_base="https://gitlab.com/api/v4/projects/${gitlab_project_path}"
+
 version_to_install="latest"
 if [ -n "$install_version" ]; then
     log_info "Attempting to install specified version: ${GREEN}$install_version${NC}"
     version_to_install="$install_version"
 else
-    log_info "No version specified, installing the latest version."
+    log_info "No version specified, querying GitLab for the latest release..."
+    latest_release_json=$(curl -fsSL "${gitlab_api_base}/releases/permalink/latest")
+    if [ -z "$latest_release_json" ]; then
+        log_error "Failed to query latest release from GitLab API"
+        exit 1
+    fi
+    version_to_install=$(echo "$latest_release_json" | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [ -z "$version_to_install" ]; then
+        log_error "Could not determine latest version from GitLab API response"
+        exit 1
+    fi
+    log_info "Latest version resolved to: ${GREEN}$version_to_install${NC}"
 fi
 
 # Construct download URL
 file_name="komari-agent-${os_name}-${arch}"
-if [ "$version_to_install" = "latest" ]; then
-    download_path="latest/download"
-else
-    download_path="download/${version_to_install}"
+if [ "$os_name" = "windows" ]; then
+    file_name="${file_name}.exe"
 fi
 
+download_url="${gitlab_api_base}/packages/generic/komari-agent/${version_to_install}/${file_name}"
+
 if [ -n "$github_proxy" ]; then
-    # Use proxy for GitHub releases
-    download_url="${github_proxy}/https://github.com/nuomiiiii/komari-agent/releases/${download_path}/${file_name}"
-else
-    # Direct access to GitHub releases
-    download_url="https://github.com/nuomiiiii/komari-agent/releases/${download_path}/${file_name}"
+    download_url="${github_proxy}/${download_url}"
 fi
 
 log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
