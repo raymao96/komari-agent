@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/komari-monitor/komari-agent/dnsresolver"
 	"github.com/komari-monitor/komari-agent/monitoring"
 	v2 "github.com/komari-monitor/komari-agent/protocol/v2"
+	"github.com/komari-monitor/komari-agent/runtimeconfig"
 	"github.com/komari-monitor/komari-agent/terminal"
 	"github.com/komari-monitor/komari-agent/utils"
 	"github.com/komari-monitor/komari-agent/ws"
@@ -41,9 +41,7 @@ func EstablishWebSocketConnection() {
 		resetConnectionProtocolVersion()
 	}()
 	var err error
-	interval := math.Max(1, flags.Interval)
-
-	dataTicker := time.NewTicker(time.Duration(interval * float64(time.Second)))
+	dataTicker := time.NewTicker(reportIntervalDuration())
 	defer dataTicker.Stop()
 
 	heartbeatTicker := time.NewTicker(30 * time.Second)
@@ -92,7 +90,7 @@ func EstablishWebSocketConnection() {
 					if connectProtocol < 2 {
 						return
 					}
-					conn, err = runPostFallback(buildWebSocketEndpoint(connectProtocol), interval)
+					conn, err = runPostFallback(buildWebSocketEndpoint(connectProtocol))
 					if err != nil {
 						if connectProtocol >= 2 && isV2ProtocolFailure(err) {
 							log.Printf("v2 POST fallback failed (%v), falling back to v1 until this connection is lost", err)
@@ -143,6 +141,8 @@ func EstablishWebSocketConnection() {
 					}
 				}
 			}
+		case <-runtimeconfig.Changes():
+			dataTicker.Reset(reportIntervalDuration())
 		case <-readDone:
 			log.Println("WebSocket disconnected")
 			if conn != nil {
@@ -174,14 +174,14 @@ func buildWebSocketEndpoint(protocolVersion int) string {
 	return websocketEndpoint
 }
 
-func runPostFallback(websocketEndpoint string, interval float64) (*ws.SafeConn, error) {
+func runPostFallback(websocketEndpoint string) (*ws.SafeConn, error) {
 	log.Println("Entering v2 POST fallback mode")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	pullErr := make(chan error, 1)
 	go runV2PullLoop(ctx, pullErr)
 
-	reportTicker := time.NewTicker(time.Duration(interval * float64(time.Second)))
+	reportTicker := time.NewTicker(reportIntervalDuration())
 	defer reportTicker.Stop()
 	reconnectTicker := time.NewTicker(time.Duration(flags.ReconnectInterval) * time.Second)
 	defer reconnectTicker.Stop()
@@ -210,10 +210,16 @@ func runPostFallback(websocketEndpoint string, interval float64) (*ws.SafeConn, 
 				return nil, err
 			}
 			log.Println("POST fallback WebSocket recovery failed:", err)
+		case <-runtimeconfig.Changes():
+			reportTicker.Reset(reportIntervalDuration())
 		case err := <-pullErr:
 			return nil, err
 		}
 	}
+}
+
+func reportIntervalDuration() time.Duration {
+	return time.Duration(runtimeconfig.ReportInterval() * float64(time.Second))
 }
 
 func runV2PullLoop(ctx context.Context, errCh chan<- error) {
@@ -404,6 +410,7 @@ func handleWebSocketMessages(conn *ws.SafeConn, protocolVersion int, done chan<-
 			JSONRPC string      `json:"jsonrpc,omitempty"`
 			Method  string      `json:"method,omitempty"`
 			Params  interface{} `json:"params,omitempty"`
+			ID      interface{} `json:"id,omitempty"`
 			Message string      `json:"message"`
 			// Terminal
 			TerminalId   string `json:"request_id,omitempty"`
@@ -422,7 +429,8 @@ func handleWebSocketMessages(conn *ws.SafeConn, protocolVersion int, done chan<-
 			continue
 		}
 		if message.JSONRPC == v2.Version && protocolVersion >= 2 {
-			processV2Event(conn, message.Method, message.Params, "")
+			eventID, _ := message.ID.(string)
+			processV2Event(conn, message.Method, message.Params, eventID)
 			continue
 		}
 
@@ -506,12 +514,7 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 			log.Printf("bad v2 config params: %v", err)
 			return false
 		}
-		if err := applyRuntimeConfig(p); err != nil {
-			forgetV2Event(eventID)
-			log.Printf("failed to apply v2 config: %v", err)
-			return false
-		}
-		return true
+		return processRuntimeConfig(p, eventID)
 	case v2.MethodAgentMessage, v2.MethodAgentEvent:
 		log.Printf("received v2 %s: %+v", method, params)
 		return true

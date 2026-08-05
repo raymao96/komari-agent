@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 )
 
 var flags = pkg_flags.GlobalConfig
+
+var runtimeConfigStateUploadRequests = make(chan struct{}, 1)
 
 func DoUploadBasicInfoWorks() {
 	ticker := time.NewTicker(time.Duration(flags.InfoReportInterval) * time.Minute)
@@ -39,6 +42,23 @@ func UpdateBasicInfo() {
 		log.Println("Basic info uploaded successfully")
 	}
 }
+
+func DoRuntimeConfigStateUploadWorks() {
+	for range runtimeConfigStateUploadRequests {
+		if err := uploadBasicInfo(); err != nil {
+			log.Println("Error uploading runtime config state:", err)
+			time.AfterFunc(5*time.Second, requestRuntimeConfigStateUpload)
+		}
+	}
+}
+
+func requestRuntimeConfigStateUpload() {
+	select {
+	case runtimeConfigStateUploadRequests <- struct{}{}:
+	default:
+	}
+}
+
 func uploadBasicInfo() error {
 	cpu := monitoring.CpuStaticInfo()
 
@@ -101,9 +121,11 @@ func tryUploadDataWithProtocol(data map[string]interface{}, protocolVersion int)
 	if err != nil {
 		return err
 	}
+	var sentConfigResult *v2.ConfigResultParams
 	if protocolVersion >= 2 {
 		endpoint = strings.TrimSuffix(flags.Endpoint, "/") + "/api/clients/v2/rpc"
-		payload = v2.BuildBasicInfoPayload(data)
+		sentConfigResult = snapshotPendingConfigResult()
+		payload = v2.BuildBasicInfoPayload(data, currentRuntimeConfigParams(), sentConfigResult, runtime.GOOS)
 	}
 	body := payload
 	compressed := false
@@ -147,6 +169,7 @@ func tryUploadDataWithProtocol(data map[string]interface{}, protocolVersion int)
 		}
 	}
 	if protocolVersion >= 2 {
+		clearPendingConfigResult(sentConfigResult)
 		resetV2ProtocolFailures(protocolVersion)
 	}
 
