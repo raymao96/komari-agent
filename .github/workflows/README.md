@@ -33,7 +33,7 @@ Dockerfile:
 The agent version and update repository are embedded with:
 
 ```sh
--ldflags="-X github.com/komari-monitor/komari-agent/update.CurrentVersion=${VERSION}+${GITHUB_SHA::7} -X github.com/komari-monitor/komari-agent/update.Repo=${GITHUB_REPOSITORY}"
+-ldflags="-X github.com/komari-monitor/komari-agent/update.CurrentVersion=${VERSION}+${GITHUB_SHA::7} -X github.com/komari-monitor/komari-agent/update.Repo=nuomiiiii/Lite-agent"
 ```
 
 Do not remove this without changing the agent update and reporting logic. Stable
@@ -42,8 +42,9 @@ identifier, for example `2.1.61+be3daa4`. Semver comparison ignores that
 identifier, so a `2.1.6+xxxxxxx` agent upgrades to public release `2.1.61`
 without repeatedly updating once installed. The agent uses
 `update.CurrentVersion` for update checks and reports it as part of basic info.
-Embedding `update.Repo` keeps fork builds on the fork's releases even
-if the source default changes during an upstream merge.
+Starting with `2.2.0.3`, release binaries embed `update.Repo=nuomiiiii/Lite-agent`
+and look for `Lite-agent-${GOOS}-${GOARCH}` on that repository. This repository
+still publishes `komari-agent-*` assets so `2.2.0.2` can download `2.2.0.3`.
 
 Prefer `go-version-file: go.mod` for release-producing workflows so Actions uses
 the Go version declared by the project.
