@@ -78,6 +78,7 @@ Trigger:
 
 - Runs on push to `main`.
 - Can be run manually with `workflow_dispatch`.
+- A numbered stable release does not use this workflow. Push that commit with `[skip ci]`, then publish the GitHub release so `release.yml` and `release-docker.yml` run.
 
 Race protection:
 
