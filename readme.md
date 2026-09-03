@@ -2,7 +2,7 @@
 
 Komari 的跨平台节点监控 Agent。本仓库版本在基础监控之外，支持安全远程终端、文件管理、远程命令、Cloudflare Access、在线配置下发与配置结果回执。
 
-当前稳定版本：`2.2.0.2`
+当前稳定版本：`2.2.0.3`
 
 ## 安装与升级
 
@@ -29,7 +29,7 @@ docker pull ghcr.io/nuomiiiii/komari-agent:latest
 也可以拉取固定版本：
 
 ```bash
-docker pull ghcr.io/nuomiiiii/komari-agent:2.2.0.2
+docker pull ghcr.io/nuomiiiii/komari-agent:2.2.0.3
 ```
 
 容器的启动参数、宿主机目录挂载和节点 Token 请以 Komari 后台生成的部署命令为准。Docker 部署不会在容器内替换 Agent 二进制；升级时需拉取新镜像并重建容器。
@@ -164,7 +164,7 @@ Agent 会向 Komari 回报当前实际生效的配置。保存配置后，状态
 
 ## 自动更新
 
-本仓库构建的 Agent 默认从 `nuomiiiii/komari-agent` 的 GitHub Releases 检查稳定版本，并只下载与当前系统和架构匹配的文件。
+本仓库的 `2.2.0.2` 及更早版本仍从 `nuomiiiii/komari-agent` 检查更新。`2.2.0.3` 起改为从 [`nuomiiiii/Lite-agent`](https://github.com/nuomiiiii/Lite-agent) 检查后续稳定版，并下载 `Lite-agent-${GOOS}-${GOARCH}`。仓库路径和品牌名变更后，未禁用自动更新的节点会先升到 `2.2.0.3`，再自动升到 Lite-agent `2.3.0.0`。
 
 以下任一方式可禁用自动更新：
 
@@ -199,5 +199,6 @@ Client ID 与 Client Secret 必须成对配置，可以选择命令行参数、�
 | `2.2.0.0` | 新增七项在线热更新配置、当前配置同步及明确的七项禁止下发边界。 |
 | `2.2.0.1` | 修复禁用自动更新失效问题，新增配置应用结果回执与最新版本优先合并。 |
 | `2.2.0.2` | 修复 WebSocket 断开后进程仍在、面板显示离线的问题；写超时后立即重连，在线状态不再依赖采集间隔或探测任务。 |
+| `2.2.0.3` | 自动更新改到 `nuomiiiii/Lite-agent`，用于升到 Lite-agent `2.3.0.0`。 |
 
 完整发布记录和升级说明请查看 [GitHub Releases](https://github.com/nuomiiiii/komari-agent/releases)。

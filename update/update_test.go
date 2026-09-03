@@ -7,8 +7,8 @@ import (
 )
 
 func TestDefaultUpdateRepo(t *testing.T) {
-	if Repo != "nuomiiiii/komari-agent" {
-		t.Fatalf("Repo = %q, want %q", Repo, "nuomiiiii/komari-agent")
+	if Repo != "nuomiiiii/Lite-agent" {
+		t.Fatalf("Repo = %q, want %q", Repo, "nuomiiiii/Lite-agent")
 	}
 }
 
@@ -82,6 +82,10 @@ func TestNeedUpdate(t *testing.T) {
 		{"2.2.0.1+b14011e", "2.2.0.2", true},
 		{"2.2.0.2+deadbee", "2.2.0.2", false},
 		{"2.2.0.2", "2.2.0.1", false},
+		{"2.2.0.2", "2.2.0.3", true},
+		{"2.2.0.3", "2.3.0.0", true},
+		{"2.2.0.3+abc1234", "2.3.0.0", true},
+		{"2.3.0.0", "2.2.0.3", false},
 	}
 
 	for _, tt := range tests {
@@ -130,9 +134,9 @@ func TestExpectedAssetName(t *testing.T) {
 		goarch string
 		want   string
 	}{
-		{"linux", "amd64", "komari-agent-linux-amd64"},
-		{"darwin", "arm64", "komari-agent-darwin-arm64"},
-		{"windows", "amd64", "komari-agent-windows-amd64.exe"},
+		{"linux", "amd64", "Lite-agent-linux-amd64"},
+		{"darwin", "arm64", "Lite-agent-darwin-arm64"},
+		{"windows", "amd64", "Lite-agent-windows-amd64.exe"},
 	}
 
 	for _, tt := range tests {
@@ -287,6 +291,36 @@ func TestStableAgentUpdatesFrom2111To2200(t *testing.T) {
 	}
 	if !needUpdate(current, latest) {
 		t.Fatal("2.1.11.1 should update to 2.2.0.0")
+	}
+}
+
+func TestStableAgentUpdatesFrom2203To2300(t *testing.T) {
+	current, err := parseVersion("2.2.0.3+current")
+	if err != nil {
+		t.Fatalf("parse current version: %v", err)
+	}
+	latest, err := parseVersion("2.3.0.0")
+	if err != nil {
+		t.Fatalf("parse latest version: %v", err)
+	}
+	if !needUpdate(current, latest) {
+		t.Fatal("2.2.0.3 should update to 2.3.0.0")
+	}
+}
+
+func TestSelectLatestStableReleaseFindsLiteAgentAssets(t *testing.T) {
+	base := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+	releases := []githubRelease{
+		testRelease("2.2.0.3", false, false, base, "komari-agent-linux-amd64"),
+		testRelease("2.3.0.0", false, false, base.Add(time.Hour), "Lite-agent-linux-amd64"),
+	}
+
+	got, ok := selectLatestStableRelease(releases, expectedAssetNames("linux", "amd64")...)
+	if !ok {
+		t.Fatal("selectLatestStableRelease() found no candidate")
+	}
+	if got.TagName != "2.3.0.0" || !got.HasAsset || got.Asset.Name != "Lite-agent-linux-amd64" {
+		t.Errorf("selectLatestStableRelease() = %+v, want 2.3.0.0 Lite-agent-linux-amd64", got)
 	}
 }
 

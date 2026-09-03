@@ -21,7 +21,7 @@ import (
 
 var (
 	CurrentVersion string = "0.0.1"
-	Repo           string = "nuomiiiii/komari-agent"
+	Repo           string = "nuomiiiii/Lite-agent"
 )
 
 const (
@@ -191,24 +191,34 @@ func detectBuildTrack(version string) buildTrack {
 	return stableTrack
 }
 
-func expectedAssetName(goos, goarch string) string {
-	name := fmt.Sprintf("komari-agent-%s-%s", goos, goarch)
+func assetName(prefix, goos, goarch string) string {
+	name := fmt.Sprintf("%s-%s-%s", prefix, goos, goarch)
 	if goos == "windows" {
 		name += ".exe"
 	}
 	return name
 }
 
-func findReleaseAsset(release githubRelease, assetName string) (githubReleaseAsset, bool) {
-	for _, asset := range release.Assets {
-		if asset.Name == assetName {
-			return asset, true
+func expectedAssetName(goos, goarch string) string {
+	return assetName("Lite-agent", goos, goarch)
+}
+
+func expectedAssetNames(goos, goarch string) []string {
+	return []string{expectedAssetName(goos, goarch)}
+}
+
+func findReleaseAsset(release githubRelease, assetNames ...string) (githubReleaseAsset, bool) {
+	for _, assetName := range assetNames {
+		for _, asset := range release.Assets {
+			if asset.Name == assetName {
+				return asset, true
+			}
 		}
 	}
 	return githubReleaseAsset{}, false
 }
 
-func selectLatestSnapshotRelease(releases []githubRelease, assetName string) (snapshotReleaseCandidate, bool) {
+func selectLatestSnapshotRelease(releases []githubRelease, assetNames ...string) (snapshotReleaseCandidate, bool) {
 	var latest snapshotReleaseCandidate
 	found := false
 
@@ -217,7 +227,7 @@ func selectLatestSnapshotRelease(releases []githubRelease, assetName string) (sn
 			continue
 		}
 
-		asset, ok := findReleaseAsset(release, assetName)
+		asset, ok := findReleaseAsset(release, assetNames...)
 		if !ok {
 			continue
 		}
@@ -242,7 +252,7 @@ func selectLatestSnapshotRelease(releases []githubRelease, assetName string) (sn
 	return latest, found
 }
 
-func selectLatestStableRelease(releases []githubRelease, assetName string) (stableReleaseCandidate, bool) {
+func selectLatestStableRelease(releases []githubRelease, assetNames ...string) (stableReleaseCandidate, bool) {
 	var latest stableReleaseCandidate
 	found := false
 
@@ -259,7 +269,7 @@ func selectLatestStableRelease(releases []githubRelease, assetName string) (stab
 			continue
 		}
 
-		asset, hasAsset := findReleaseAsset(release, assetName)
+		asset, hasAsset := findReleaseAsset(release, assetNames...)
 		latest = stableReleaseCandidate{
 			Version:     version,
 			TagName:     release.TagName,
@@ -431,14 +441,14 @@ func checkAndUpdateStable(currentVersion comparableVersion, updater *selfupdate.
 		return err
 	}
 
-	assetName := expectedAssetName(runtime.GOOS, runtime.GOARCH)
-	latest, found := selectLatestStableRelease(releases, assetName)
+	assetNames := expectedAssetNames(runtime.GOOS, runtime.GOARCH)
+	latest, found := selectLatestStableRelease(releases, assetNames...)
 	if !found || !needUpdate(currentVersion, latest.Version) {
 		log.Println("Current version is the latest:", CurrentVersion)
 		return nil
 	}
 	if !latest.HasAsset {
-		return fmt.Errorf("release %s is available, but asset %s is not ready; retry in %s", latest.TagName, assetName, retryCheckInterval)
+		return fmt.Errorf("release %s is available, but asset %s is not ready; retry in %s", latest.TagName, strings.Join(assetNames, ", "), retryCheckInterval)
 	}
 
 	cmdPath, err := currentExecutablePath()
@@ -483,10 +493,10 @@ func checkAndUpdateSnapshot(updater *selfupdate.Updater) error {
 		return err
 	}
 
-	assetName := expectedAssetName(runtime.GOOS, runtime.GOARCH)
-	latest, found := selectLatestSnapshotRelease(releases, assetName)
+	assetNames := expectedAssetNames(runtime.GOOS, runtime.GOARCH)
+	latest, found := selectLatestSnapshotRelease(releases, assetNames...)
 	if !found {
-		log.Printf("No suitable snapshot release asset was found for %s. Current snapshot is considered up-to-date.", assetName)
+		log.Printf("No suitable snapshot release asset was found for %s. Current snapshot is considered up-to-date.", strings.Join(assetNames, ", "))
 		return nil
 	}
 
