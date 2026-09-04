@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	v2 "github.com/komari-monitor/komari-agent/protocol/v2"
+	v2 "github.com/raymao96/komari-agent/protocol/v2"
 )
 
 func TestResolveRouteTargetLiteralAddress(t *testing.T) {
@@ -14,6 +14,28 @@ func TestResolveRouteTargetLiteralAddress(t *testing.T) {
 	}
 	if _, err := resolveRouteTarget("1.1.1.1", 6); err == nil {
 		t.Fatal("IPv4 literal unexpectedly accepted for IPv6 task")
+	}
+}
+
+func TestRouteTargetReachedMatchesHopIP(t *testing.T) {
+	hops := []v2.RouteHop{
+		{IP: "192.0.2.1"},
+		{IP: "1.1.1.1"},
+	}
+	if !routeTargetReached(hops, "1.1.1.1", 4) {
+		t.Fatal("expected target reached")
+	}
+	if routeTargetReached(hops, "8.8.8.8", 4) {
+		t.Fatal("did not expect target reached")
+	}
+	if routeTargetReached([]v2.RouteHop{{IP: "1.1.1.1", Timeout: true}}, "1.1.1.1", 4) {
+		t.Fatal("timeout hop should not count as reached")
+	}
+}
+
+func TestRouteResolvedTargetLiteral(t *testing.T) {
+	if got := routeResolvedTarget("1.1.1.1", 4, nil); got != "1.1.1.1" {
+		t.Fatalf("resolved = %q", got)
 	}
 }
 

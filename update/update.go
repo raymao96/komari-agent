@@ -15,18 +15,19 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/komari-monitor/komari-agent/dnsresolver"
+	"github.com/nuomiiiii/lite-agent/dnsresolver"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
 
 var (
-	CurrentVersion string = "0.0.1"
-	Repo           string = "nuomiiiii/Lite-agent"
+	CurrentVersion string = "2.3.0.2"
+	Repo           string = "raymao96/komari-agent"
 )
 
 const (
-	snapshotVersionPrefix = "Snapshot-"
-	containerMarkerPath   = "/.komari-agent-container"
+	snapshotVersionPrefix     = "Snapshot-"
+	containerMarkerPath       = "/.lite-agent-container"
+	legacyContainerMarkerPath = "/.komari-agent-container"
 	githubAPIBaseURL      = "https://api.github.com"
 	regularCheckInterval  = 6 * time.Hour
 	retryCheckInterval    = 15 * time.Minute
@@ -92,7 +93,7 @@ func (version comparableVersion) String() string {
 	return strings.Replace(value, core, fmt.Sprintf("%s.%d", core, version.revision), 1)
 }
 
-// parseVersion accepts standard semver and Komari's four-part Agent versions.
+// parseVersion accepts standard semver and Lite's four-part Agent versions.
 // Three-part versions are treated as revision zero during comparison.
 func parseVersion(ver string) (comparableVersion, error) {
 	ver = strings.TrimSpace(ver)
@@ -179,7 +180,7 @@ func versionPatchOrder(version comparableVersion) (basePatch, revision uint64) {
 	return version.base.Patch, version.revision
 }
 
-// needUpdate 判断是否需要更新
+// needUpdate reports whether latest is newer than current.
 func needUpdate(current, latest comparableVersion) bool {
 	return compareVersions(latest, current) > 0
 }
@@ -291,8 +292,23 @@ func snapshotNeedsUpdate(currentVersion string, latest snapshotReleaseCandidate)
 }
 
 func isContainerAgent() bool {
-	_, err := os.Stat(containerMarkerPath)
+	if _, err := os.Stat(containerMarkerPath); err == nil {
+		return true
+	}
+	_, err := os.Stat(legacyContainerMarkerPath)
 	return err == nil
+}
+
+func listUpdateReleases() (owner, repo string, releases []githubRelease, err error) {
+	owner, repo, err = splitRepoSlug(Repo)
+	if err != nil {
+		return "", "", nil, err
+	}
+	releases, err = listGitHubReleases(owner, repo)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return owner, repo, releases, nil
 }
 
 func splitRepoSlug(slug string) (string, string, error) {
@@ -320,7 +336,7 @@ func listGitHubReleases(owner, repo string) ([]githubRelease, error) {
 		}
 
 		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("User-Agent", "komari-agent")
+		req.Header.Set("User-Agent", "Lite-agent")
 		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -431,12 +447,7 @@ func DoUpdateWorks(initialCheckFailed bool) {
 }
 
 func checkAndUpdateStable(currentVersion comparableVersion, updater *selfupdate.Updater) error {
-	owner, repo, err := splitRepoSlug(Repo)
-	if err != nil {
-		return err
-	}
-
-	releases, err := listGitHubReleases(owner, repo)
+	owner, repo, releases, err := listUpdateReleases()
 	if err != nil {
 		return err
 	}
@@ -448,7 +459,7 @@ func checkAndUpdateStable(currentVersion comparableVersion, updater *selfupdate.
 		return nil
 	}
 	if !latest.HasAsset {
-		return fmt.Errorf("release %s is available, but asset %s is not ready; retry in %s", latest.TagName, strings.Join(assetNames, ", "), retryCheckInterval)
+		return fmt.Errorf("release %s is available, but asset %s is not ready; retry in %s", latest.TagName, strings.Join(assetNames, " or "), retryCheckInterval)
 	}
 
 	cmdPath, err := currentExecutablePath()
@@ -483,12 +494,7 @@ func checkAndUpdateSnapshot(updater *selfupdate.Updater) error {
 		return nil
 	}
 
-	owner, repo, err := splitRepoSlug(Repo)
-	if err != nil {
-		return err
-	}
-
-	releases, err := listGitHubReleases(owner, repo)
+	owner, repo, releases, err := listUpdateReleases()
 	if err != nil {
 		return err
 	}
@@ -496,7 +502,7 @@ func checkAndUpdateSnapshot(updater *selfupdate.Updater) error {
 	assetNames := expectedAssetNames(runtime.GOOS, runtime.GOARCH)
 	latest, found := selectLatestSnapshotRelease(releases, assetNames...)
 	if !found {
-		log.Printf("No suitable snapshot release asset was found for %s. Current snapshot is considered up-to-date.", strings.Join(assetNames, ", "))
+		log.Printf("No suitable snapshot release asset was found for %s. Current snapshot is considered up-to-date.", strings.Join(assetNames, " or "))
 		return nil
 	}
 
@@ -520,7 +526,7 @@ func checkAndUpdateSnapshot(updater *selfupdate.Updater) error {
 	return nil
 }
 
-// 检查更新并执行自动更新
+// CheckAndUpdate checks GitHub for a newer agent and applies it.
 func CheckAndUpdate() error {
 	log.Println("Checking update...")
 
