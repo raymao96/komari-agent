@@ -2,9 +2,9 @@
 
 Lite 的跨平台节点监控 Agent。本仓库版本在基础监控之外，支持安全远程终端、文件管理、远程命令、Cloudflare Access、在线配置下发与配置结果回执。
 
-当前稳定版本：`2.3.1.0`
+当前稳定版本：`2.3.3.0`
 
-Lite 需升级至 Lite 2.3.1 或更高版本。
+使用 MCP 代理功能，Lite需升级至 2.3.3 或更高版本。现有上报、远程终端和文件管理可继续在 Lite 2.3.2 使用。
 
 ## 安装与升级
 
@@ -32,7 +32,7 @@ docker pull ghcr.io/nuomiiiii/Lite-agent:latest
 也可以拉取固定版本：
 
 ```bash
-docker pull ghcr.io/nuomiiiii/Lite-agent:2.3.1.0
+docker pull ghcr.io/nuomiiiii/Lite-agent:2.3.3.0
 ```
 
 容器的启动参数、宿主机目录挂载和节点 Token 请以 Lite 后台生成的部署命令为准。Docker 部署不会在容器内替换 Agent 二进制；升级时需拉取新镜像并重建容器。
@@ -57,7 +57,7 @@ chmod +x ./Lite-agent-linux-amd64
 - 执行 Lite 下发的延迟监测、任务和批量命令。
 - 支持独立远程终端、窗口尺寸同步、目录浏览、文件上传下载、文件与目录复制等远程管理能力。
 - 支持从 Lite 在线热更新可下发配置，并回报当前生效配置和应用结果。
-- 支持 Cloudflare Access Service Token；主连接、数据上报、任务结果、自动发现和远程管理请求均可携带认证头。
+- 支持 Cloudflare Access Service Token；主连接、数据上报、任务结果和远程管理请求均可携带认证头。
 - 支持 v2 协议压缩、IPv4/IPv6 连接偏好、自定义 DNS、自定义上报 IP 和网卡筛选。
 
 ## 远程管理与安全
@@ -126,7 +126,7 @@ export AGENT_TOKEN="your-token"
 | `custom_ipv4` | `AGENT_CUSTOM_IPV4` | `--custom-ipv4` | 自定义上报 IPv4 地址 |
 | `custom_ipv6` | `AGENT_CUSTOM_IPV6` | `--custom-ipv6` | 自定义上报 IPv6 地址 |
 | `get_ip_addr_from_nic` | `AGENT_GET_IP_ADDR_FROM_NIC` | `--get-ip-addr-from-nic` | 从网卡获取上报 IP 地址 |
-| `auto_discovery_key` | `AGENT_AUTO_DISCOVERY_KEY` | `--auto-discovery` | 自动发现密钥 |
+| `auto_discovery_key` | `AGENT_AUTO_DISCOVERY_KEY` | `--auto-discovery` | 已下线。原先自动发现带上来的机器升级后仍能上报；若离线请重新安装 Agent。 |
 | `cf_access_client_id` | `AGENT_CF_ACCESS_CLIENT_ID` | `--cf-access-client-id` | Cloudflare Access Service Token Client ID |
 | `cf_access_client_secret` | `AGENT_CF_ACCESS_CLIENT_SECRET` | `--cf-access-client-secret` | Cloudflare Access Service Token Client Secret，必须与 Client ID 同时配置 |
 | `custom_dns` | `AGENT_CUSTOM_DNS` | `--custom-dns` | 自定义 DNS 服务器 |
@@ -209,5 +209,7 @@ Client ID 与 Client Secret 必须成对配置，可以选择命令行参数、�
 | `2.3.0.1` | 回程探测会附带是否到达目标。目标是域名时，面板也能判断探测是否走到解析后的 IP。 |
 | `2.3.0.2` | 回程探测只认本次探测的 ICMP 回包，避免把无关或上一跳晚到的包当成路径跳点。 |
 | `2.3.1.0` | 远程控制改为正向开关。已装节点没写过禁止远程的，升级后仍开启；旧的 `disable_web_ssh` 会迁到新配置。新装由 Lite 一键命令明确写入开启或关闭。从默认 komari-agent 路径升级时，仍会带走节点身份、流量统计和配置文件。文件管理增加队列、并发上限和列表分页。远程命令会记下执行状态；同一条命令不会因重试再跑一遍，进程中断后会补报执行状态未知。Windows 命令输出会尽量转成可读文本。是否允许远程由站点开关和节点本地开关共同决定。Lite 需升级至 Lite 2.3.1 或更高版本。 |
+| `2.3.1.1` | 已下线自动发现功能，不再注册新节点。原先自动发现带上来的机器，升级后仍能正常上报，若遇到离线，请重新安装 Agent。 |
+| `2.3.3.0` | 新增 MCP 代理功能：远程控制开启后，AI客户端可通过 MCP 代理远程执行命令和操作文件。文件管理增加读写和分块下载。网页里原来的列表、上传、下载用法不变。现有上报、远程终端和文件管理可继续在 Lite 2.3.2 使用。使用 MCP 代理功能，Lite需升级至 2.3.3 或更高版本。 |
 
 完整发布记录和升级说明请查看 [GitHub Releases](https://github.com/nuomiiiii/Lite-agent/releases)。

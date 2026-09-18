@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	CurrentVersion string = "2.3.1.0"
+	CurrentVersion string = "2.3.3.0"
 	Repo           string = "raymao96/komari-agent"
 )
 
