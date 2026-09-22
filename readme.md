@@ -2,7 +2,7 @@
 
 Lite 的跨平台节点监控 Agent。本仓库版本在基础监控之外，支持安全远程终端、文件管理、远程命令、Cloudflare Access、在线配置下发与配置结果回执。
 
-当前稳定版本：`2.3.3.0`
+当前稳定版本：`2.3.3.5`
 
 使用 MCP 代理功能，Lite需升级至 2.3.3 或更高版本。现有上报、远程终端和文件管理可继续在 Lite 2.3.2 使用。
 
@@ -23,6 +23,33 @@ bash <(curl -sL https://raw.githubusercontent.com/nuomiiiii/Lite-agent/main/inst
 
 安装脚本支持 Linux、macOS 和 FreeBSD，并可通过 `--install-dir`、`--install-service-name`、`--install-ghproxy`、`--install-version` 调整安装过程。需要开启远程控制时，把 `--enable-remote-control=false` 换成 `--enable-remote-control`。
 
+### 从 komari-agent 迁移
+
+机器上如果已经在跑上游 `komari-agent`，不要用 Lite 后台新节点的部署命令（那会换新 Token）。在原机器上执行迁移脚本：它会自行完成夺舍，装成 Lite-agent，确认新服务起来后再卸掉 `komari-agent`。
+
+主控地址没变：
+
+```bash
+curl -sL https://raw.githubusercontent.com/nuomiiiii/Lite-agent/main/migrate.sh | sudo bash
+```
+
+主控换了新地址：
+
+```bash
+curl -sL https://raw.githubusercontent.com/nuomiiiii/Lite-agent/main/migrate.sh | sudo bash -s -- \
+  --endpoint "https://lite.example.com"
+```
+
+Windows：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/nuomiiiii/Lite-agent/main/migrate.ps1 -UseBasicParsing -OutFile 'migrate.ps1'; & .\migrate.ps1"
+```
+
+新地址同样追加 `--endpoint "https://lite.example.com"`。GitHub 访问困难时可加 `--install-ghproxy`。不要给迁移脚本传 `--token`，也不要改安装目录或服务名，否则不会按原节点接手，也不会卸掉上游 Agent。
+
+Docker 请用原来的 `-e` `-t` 重建 Lite-agent 容器，不要在容器里跑迁移脚本。
+
 ### Docker
 
 ```bash
@@ -32,7 +59,7 @@ docker pull ghcr.io/nuomiiiii/Lite-agent:latest
 也可以拉取固定版本：
 
 ```bash
-docker pull ghcr.io/nuomiiiii/Lite-agent:2.3.3.0
+docker pull ghcr.io/nuomiiiii/Lite-agent:2.3.3.5
 ```
 
 容器的启动参数、宿主机目录挂载和节点 Token 请以 Lite 后台生成的部署命令为准。Docker 部署不会在容器内替换 Agent 二进制；升级时需拉取新镜像并重建容器。
@@ -211,5 +238,10 @@ Client ID 与 Client Secret 必须成对配置，可以选择命令行参数、�
 | `2.3.1.0` | 远程控制改为正向开关。已装节点没写过禁止远程的，升级后仍开启；旧的 `disable_web_ssh` 会迁到新配置。新装由 Lite 一键命令明确写入开启或关闭。从默认 komari-agent 路径升级时，仍会带走节点身份、流量统计和配置文件。文件管理增加队列、并发上限和列表分页。远程命令会记下执行状态；同一条命令不会因重试再跑一遍，进程中断后会补报执行状态未知。Windows 命令输出会尽量转成可读文本。是否允许远程由站点开关和节点本地开关共同决定。Lite 需升级至 Lite 2.3.1 或更高版本。 |
 | `2.3.1.1` | 已下线自动发现功能，不再注册新节点。原先自动发现带上来的机器，升级后仍能正常上报，若遇到离线，请重新安装 Agent。 |
 | `2.3.3.0` | 新增 MCP 代理功能：远程控制开启后，AI客户端可通过 MCP 代理远程执行命令和操作文件。文件管理增加读写和分块下载。网页里原来的列表、上传、下载用法不变。现有上报、远程终端和文件管理可继续在 Lite 2.3.2 使用。使用 MCP 代理功能，Lite需升级至 2.3.3 或更高版本。 |
+| `2.3.3.1` | Linux 上部分 AMD 显卡在 rocm-smi 无法使用时，改为读取系统接口上报 GPU 占用、显存和温度。 |
+| `2.3.3.2` | 新增从上游 komari-agent 迁到 Lite-agent 的迁移脚本；个别线路拦压缩基础上报时自动 HTTP 压缩回退。 |
+| `2.3.3.3` | 含 2.3.3.2 的迁移脚本和 HTTP 压缩回退，并优化 Agent 运行时内存占用。 |
+| `2.3.3.4` | 流量重置改为按时区、日期、时分秒计算。已有节点升级后，原来只填了重置日的，会按北京时间当天 00:00:00 继续重置。 |
+| `2.3.3.5` | 优化流量统计跨过重置时刻统计逻辑，会按重置前后分开记录，重置前的流量不会算进新周期。 |
 
 完整发布记录和升级说明请查看 [GitHub Releases](https://github.com/nuomiiiii/Lite-agent/releases)。
